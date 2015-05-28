@@ -1,13 +1,16 @@
 CC=gcc
 CFLAGS= -g -m32
-LIBS= -lessfunc
-ODIR=.obj
+LIBS= -lpthread
+AR=ar
 
-libessfunc.so: 
-	$(CC) $(CFLAGS) -shared essfunc.c -o $@ 
+essfunc.o:
+	$(CC) $(CFLAGS) -c essfunc.c -o $@
 
-vulnserver: libessfunc.so
-	$(CC) $(CFLAGS) vulnserver.c -o $@ libessfunc.so
+libessfunc.a: essfunc.o
+	$(AR) rcs $@ $^
+
+vulnserver: libessfunc.a
+	$(CC) $(CFLAGS) vulnserver.c -o $@ libessfunc.a $(LIBS)
 
 all: vulnserver
 
