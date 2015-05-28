@@ -17,4 +17,4 @@ all: vulnserver
 .PHONY: clean
 
 clean:
-	rm -f *.o *~ core *~ *.so
+	rm -f *.o *~ core *~ *.so vulnserver
