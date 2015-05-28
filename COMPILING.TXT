@@ -7,4 +7,6 @@ Now compile the main program:
 
 gcc.exe vulnserver.c -o vulnserver.exe -lws2_32 ./libessfunc.so
 
+Or just use:
 
+make all
