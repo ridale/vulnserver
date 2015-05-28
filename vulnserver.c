@@ -1,5 +1,3 @@
-#define _WIN32_WINNT 0x501
-
 /*
 VulnServer - a deliberately vulnerable threaded TCP server application
 
@@ -24,21 +22,30 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 */
 
 
-#include <windows.h>
-#include <ws2tcpip.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
+#include <pthread.h>
+#include <unistd.h>
+
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <errno.h>
 
 #define VERSION "1.00"
 #define DEFAULT_BUFLEN 4096
 #define DEFAULT_PORT "9999"
+typedef unsigned char byte;
 
+const int INVALID_SOCKET = -1;
 
 void Function1(char *Input);
 void Function2(char *Input);
 void Function3(char *Input);
 void Function4(char *Input);
-DWORD WINAPI ConnectionHandler(LPVOID CSocket);
+
+static void* ConnectionHandler(void* CSocket);
 
 
 int main( int argc, char *argv[] ) {
@@ -57,24 +64,18 @@ int main( int argc, char *argv[] ) {
 	} else {		
 		strncpy(PortNumber, DEFAULT_PORT, 6);
 	}
+
 	printf("Starting vulnserver version %s\n", VERSION);
 	EssentialFunc1(); // Call function from external dll
 	printf("\nThis is vulnerable software!\nDo not allow access from untrusted systems or networks!\n\n");
-	WSADATA wsaData;
-	SOCKET ListenSocket = INVALID_SOCKET,
+	int ListenSocket = INVALID_SOCKET,
 	ClientSocket = INVALID_SOCKET;
-	struct addrinfo *result = NULL, hints;
-	int Result;
-	struct sockaddr_in ClientAddress;
+	int Result = 0;
+	struct sockaddr ClientAddress;
 	int ClientAddressL = sizeof(ClientAddress);
+	struct addrinfo *result = NULL, hints;
 
-	Result = WSAStartup(MAKEWORD(2,2), &wsaData);
-	if (Result != 0) {
-		printf("WSAStartup failed with error: %d\n", Result);
-		return 1;
-	}
-
-	ZeroMemory(&hints, sizeof(hints));
+	memset(&hints, 0, sizeof(hints));
 	hints.ai_family = AF_INET;
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_protocol = IPPROTO_TCP;
@@ -83,54 +84,49 @@ int main( int argc, char *argv[] ) {
 	Result = getaddrinfo(NULL, PortNumber, &hints, &result);
 	if ( Result != 0 ) {
 		printf("Getaddrinfo failed with error: %d\n", Result);
-		WSACleanup();
 		return 1;
 	}
 
 	ListenSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
 	if (ListenSocket == INVALID_SOCKET) {
-		printf("Socket failed with error: %ld\n", WSAGetLastError());
+		printf("Socket failed with error: %ld\n", errno);
 		freeaddrinfo(result);
-		WSACleanup();
 		return 1;
 	}
 
 	Result = bind( ListenSocket, result->ai_addr, (int)result->ai_addrlen);
-	if (Result == SOCKET_ERROR) {
-		printf("Bind failed with error: %d\n", WSAGetLastError());
-		closesocket(ListenSocket);
-		WSACleanup();
+	if ( Result != 0 ) {
+		printf("Bind failed with error: %d\n", errno);
+		close(ListenSocket);
 		return 1;
 	}
 
 	freeaddrinfo(result);
 
 	Result = listen(ListenSocket, SOMAXCONN);
-	if (Result == SOCKET_ERROR) {
-		printf("Listen failed with error: %d\n", WSAGetLastError());
-		closesocket(ListenSocket);
-		WSACleanup();
+	if ( Result != 0 ) {
+		printf("Listen failed with error: %d\n", errno);
+		close(ListenSocket);
 		return 1;
 	}		
 
 	while(ListenSocket) {	
 		printf("Waiting for client connections...\n");
 
-		ClientSocket = accept(ListenSocket, (SOCKADDR*)&ClientAddress, &ClientAddressL);
+		ClientSocket = accept(ListenSocket, &ClientAddress, &ClientAddressL);
+
 		if (ClientSocket == INVALID_SOCKET) {
-			printf("Accept failed with error: %d\n", WSAGetLastError());
-			closesocket(ListenSocket);
-			WSACleanup();
+			printf("Accept failed with error: %d\n", errno);
+			close(ListenSocket);
 			return 1;
 		}
-
-		printf("Received a client connection from %s:%u\n", inet_ntoa(ClientAddress.sin_addr), htons(ClientAddress.sin_port));
-		CreateThread(0,0,ConnectionHandler, (LPVOID)ClientSocket , 0,0);
+		struct sockaddr_in* cli_addr = (struct sockaddr_in*)&ClientAddress;
+		printf("Received a client connection from %s:%u\n", inet_ntoa(cli_addr->sin_addr), htons(cli_addr->sin_port));
+		CreateThread(0,0,ConnectionHandler, (void*)&ClientSocket , 0,0);
 		
 	}
 
-	closesocket(ListenSocket);
-	WSACleanup();
+	close(ListenSocket);
 
 	return 0;
 }
@@ -156,8 +152,8 @@ void Function4(char *Input) {
 	strcpy(Buffer2S, Input);
 }
 
-
-DWORD WINAPI ConnectionHandler(LPVOID CSocket) {
+static int retval = 0;
+void* ConnectionHandler(void* CSocket) {
 	int RecvBufLen = DEFAULT_BUFLEN;
 	char *RecvBuf = malloc(DEFAULT_BUFLEN);
 	char BigEmpty[1000];
@@ -165,12 +161,13 @@ DWORD WINAPI ConnectionHandler(LPVOID CSocket) {
 	int Result, SendResult, i, k;
 	memset(BigEmpty, 0, 1000);
 	memset(RecvBuf, 0, DEFAULT_BUFLEN);
-	SOCKET Client = (SOCKET)CSocket; 
+	int Client = *((int*)CSocket); 
 	SendResult = send( Client, "Welcome to Vulnerable Server! Enter HELP for help.\n", 51, 0 );
-	if (SendResult == SOCKET_ERROR) {
-		printf("Send failed with error: %d\n", WSAGetLastError());
-		closesocket(Client);
-		return 1;
+	if ( SendResult == -1 ) {
+		printf("Send failed with error: %d\n", errno);
+		close(Client);
+		retval = 1;
+		return &retval;
 	}
 	while (CSocket) {
 		Result = recv(Client, RecvBuf, RecvBufLen, 0);
@@ -282,26 +279,27 @@ DWORD WINAPI ConnectionHandler(LPVOID CSocket) {
 			} else if (strncmp(RecvBuf, "EXIT", 4) == 0) {
 				SendResult = send( Client, "GOODBYE\n", 8, 0 );
 				printf("Connection closing...\n");
-				closesocket(Client);
+				close(Client);
 				return 0;
 			} else {
 				SendResult = send( Client, "UNKNOWN COMMAND\n", 16, 0 );
 			}
-			if (SendResult == SOCKET_ERROR) {
-				printf("Send failed with error: %d\n", WSAGetLastError());
-				closesocket(Client);
-				return 1;
+			if (SendResult == -1) {
+				printf("Send failed with error: %d\n", errno);
+				close(Client);
+				retval = 1;
+				return &retval;
 			}
 		} else if (Result == 0) {
 			printf("Connection closing...\n");
-			closesocket(Client);
-			return 0;			
+			close(Client);
+			return &retval;			
 		} else  {
-			printf("Recv failed with error: %d\n", WSAGetLastError());
-			closesocket(Client);
-			return 1;
+			printf("Recv failed with error: %d\n", errno);
+			close(Client);
+			retval = Result;
+			return &retval;
 		}
 
 	}	
 }
-
