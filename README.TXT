@@ -6,7 +6,7 @@ Check my blog at http://www.thegreycorner.com/ for more information and updates 
 ABOUT THE SOFTWARE
 ======================================================================
 
-Vulnserver is a multithreaded Windows based TCP server that listens for client connections on port 9999 (by default) and allows the user to run a number of different commands that are vulnerable to various types of exploitable buffer overflows.
+Vulnserver is a multithreaded ~~Windows~~ based TCP server that listens for client connections on port 9999 (by default) and allows the user to run a number of different commands that are vulnerable to various types of exploitable buffer overflows.
 
 This software is intended mainly as a tool for learning how to find and exploit buffer overflow bugs, and each of the bugs it contains is subtly different from the others, requiring a slightly different approach to be taken when writing the exploit.
 
@@ -16,13 +16,15 @@ Though it does make an attempt to mimic a (simple) legitimate server program thi
 COMPILING THE SOFTWARE
 ======================================================================
 
-Binaries have been provided in this package, however if you wish to compile the software from the provided source files instructions are included in the file COMPILING.txt.
+~~Binaries have been provided in this package, however~~ if you wish to compile the software from the provided source files instructions are included in the file COMPILING.txt.
+
+Or use the Makefile
 
 ======================================================================
 RUNNING THE SOFTWARE
 ======================================================================
 
-To run the software, simply execute vulnserver.exe.  The provided essfunc.dll library must be in a location where it can be found by vulnserver.exe - keeping both files in the same directory will usually work fine.
+To run the software, simply execute vulnserver.  The provided essfunc.so library must be in a location where it can be found by vulnserver - keeping both files in the same directory will usually work fine.
 
 To start the server listening on the default port of 9999, simply run the executable, to use an alternate port, provide the port number as a command line parameter.
 
