@@ -81,6 +81,14 @@ int main( int argc, char *argv[] ) {
 	hints.ai_protocol = IPPROTO_TCP;
 	hints.ai_flags = AI_PASSIVE;
 
+        /* Initialize thread creation attributes */
+        pthread_attr_t attr;
+        Result = pthread_attr_init(&attr);
+        if (Result != 0) {
+                printf("pthread_attr_init returned %d\n",Result);
+               return 1;
+       }
+
 	Result = getaddrinfo(NULL, PortNumber, &hints, &result);
 	if ( Result != 0 ) {
 		printf("Getaddrinfo failed with error: %d\n", Result);
@@ -122,8 +130,12 @@ int main( int argc, char *argv[] ) {
 		}
 		struct sockaddr_in* cli_addr = (struct sockaddr_in*)&ClientAddress;
 		printf("Received a client connection from %s:%u\n", inet_ntoa(cli_addr->sin_addr), htons(cli_addr->sin_port));
-		CreateThread(0,0,ConnectionHandler, (void*)&ClientSocket , 0,0);
-		
+                //CreateThread(0,0,ConnectionHandler, (void*)&ClientSocket , 0,0);
+                pthread_t thread_id;
+                Result = pthread_create(&thread_id, &attr,&ConnectionHandler, &ClientSocket);
+                if (Result != 0)
+                        printf("pthread_create failed with error: %d\n", Result);
+
 	}
 
 	close(ListenSocket);
