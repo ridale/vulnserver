@@ -3,6 +3,8 @@ CFLAGS= -g -m32
 LIBS= -lpthread
 AR=ar
 
+all: vulnserver
+
 essfunc.o:
 	$(CC) $(CFLAGS) -c essfunc.c -o $@
 
@@ -11,8 +13,6 @@ libessfunc.a: essfunc.o
 
 vulnserver: libessfunc.a
 	$(CC) $(CFLAGS) vulnserver.c -o $@ libessfunc.a $(LIBS)
-
-all: vulnserver
 
 .PHONY: clean
 
